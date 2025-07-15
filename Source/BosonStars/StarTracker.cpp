@@ -225,8 +225,8 @@ void StarTracker::find_centre_merger(int num_star, int fitting_direction)
         for (int i = 0; i < m_points; i++)
         {
             weight = (m_vals_shifted_chi[i] - fmin) / (fmax - fmin);
-            sum1 = sum1 + m_x_coords[i] * weight;
-            sum2 = sum2 + weight;
+            sum1 += m_x_coords[i] * weight;
+            sum2 += weight;
         }
 
         m_star_coords[num_star][0] = sum1 / sum2;
@@ -242,8 +242,8 @@ void StarTracker::find_centre_merger(int num_star, int fitting_direction)
         for (int i = 0; i < m_points; i++)
         {
             weight = (m_vals_shifted_chi[i] - fmin) / (fmax - fmin);
-            sum1 = m_y_coords[i] * weight;
-            sum2 = weight;
+            sum1 += m_y_coords[i] * weight;
+            sum2 += weight;
         }
 
         m_star_coords[num_star][1] = sum1 / sum2;
@@ -259,8 +259,8 @@ void StarTracker::find_centre_merger(int num_star, int fitting_direction)
         for (int i = 0; i < m_points; i++)
         {
             weight = (m_vals_shifted_chi[i] - fmin) / (fmax - fmin);
-            sum1 = m_z_coords[i] * weight;
-            sum2 = weight;
+            sum1 += m_z_coords[i] * weight;
+            sum2 += weight;
         }
 
         m_star_coords[num_star][2] = sum1 / sum2;
