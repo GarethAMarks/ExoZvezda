@@ -28,6 +28,10 @@
 #include "ComputePack.hpp"
 #include "SetValue.hpp"
 
+//For ADM quantities
+#include "ADMQuantities.hpp"
+#include "ADMQuantitiesExtraction.hpp"
+
 // For GW extraction
 #include "MatterWeyl4.hpp"
 #include "WeylExtraction.hpp"
@@ -163,6 +167,33 @@ void BBSPlainSuperpositionLevel::specificPostTimeStep()
     CH_TIME("BBSPlainSuperpositionLevel::specificPostTimeStep");
 
     bool first_step = (m_time == 0.0);
+
+
+    if (m_p.activate_extraction == 1)
+    {
+        int min_level = m_p.extraction_params.min_extraction_level();
+        bool calculate_adm = at_level_timestep_multiple(min_level);
+        if (calculate_adm)
+        {
+            // Populate the ADM Mass and Spin values on the grid
+            fillAllGhosts();
+            BoxLoops::loop(ADMQuantities(m_p.extraction_params.center, m_dx,
+                                         c_Madm, c_Jadm),
+                           m_state_new, m_state_diagnostics,
+                           EXCLUDE_GHOST_CELLS);
+            if (m_level == min_level)
+            {
+                CH_TIME("ADMExtraction");
+                // Now refresh the interpolator and do the interpolation
+                m_gr_amr.m_interpolator->refresh();
+                ADMQuantitiesExtraction my_extraction(
+                    m_p.extraction_params, m_dt, m_time, m_restart_time, c_Madm,
+                    c_Jadm);
+                my_extraction.execute_query(m_gr_amr.m_interpolator);
+            }
+        }
+    }
+
 
     // First compute the Weyl4 +
     // constraints

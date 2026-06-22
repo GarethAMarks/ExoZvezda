@@ -18,8 +18,12 @@
 #include "NewConstraints.hpp"
 #include "NewMatterConstraints.hpp"
 
+//For ADM quantities
+#include "ADMQuantities.hpp"
+#include "ADMQuantitiesExtraction.hpp"
+
 // For tag cells
-#include "ComplexPhiAndChiExtractionTaggingCriterion.hpp"
+#include "BosonChiPunctureExtractionTaggingCriterion.hpp "
 
 // Problem specific includes
 #include "BinaryEqualMassFix.hpp"
@@ -162,6 +166,37 @@ void BBSEqualMassFixLevel::specificPostTimeStep()
 
     bool first_step = (m_time == 0.0);
 
+
+
+// Do the extraction on the min extraction level
+
+
+
+    if (m_p.activate_extraction == 1)
+    {
+        int min_level = m_p.extraction_params.min_extraction_level();
+        bool calculate_adm = at_level_timestep_multiple(min_level);
+        if (calculate_adm)
+        {
+            // Populate the ADM Mass and Spin values on the grid
+            fillAllGhosts();
+            BoxLoops::loop(ADMQuantities(m_p.extraction_params.center, m_dx,
+                                         c_Madm, c_Jadm),
+                           m_state_new, m_state_diagnostics,
+                           EXCLUDE_GHOST_CELLS);
+            if (m_level == min_level)
+            {
+                CH_TIME("ADMExtraction");
+                // Now refresh the interpolator and do the interpolation
+                m_gr_amr.m_interpolator->refresh();
+                ADMQuantitiesExtraction my_extraction(
+                    m_p.extraction_params, m_dt, m_time, m_restart_time, c_Madm,
+                    c_Jadm);
+                my_extraction.execute_query(m_gr_amr.m_interpolator);
+            }
+        }
+    }
+
     // First compute the Weyl4 +
     // constraints
     fillAllGhosts();
@@ -271,7 +306,26 @@ void BBSEqualMassFixLevel::specificPostTimeStep()
             });
         }
         constraints_file.write_time_data_line({L2_Ham, L2_Mom, L1_Ham, L1_Mom});
-    }
+/*
+        //ADM quantities below
+        double L2_Madm = amr_reductions.norm(c_Madm, 2, true);
+	double L2_Jadm = amr_reductions.norm(c_Jadm, 2, true);
+
+        SmallDataIO adm_file("ADM_quantities", m_dt, m_time,
+                                     m_restart_time, SmallDataIO::APPEND,
+                                     first_step);
+        adm_file.remove_duplicate_time_data();
+        if (first_step)
+        {
+            adm_file.write_header_line({
+                "M_adm",
+                "J_adm",
+            });
+        }
+        adm_file.write_time_data_line({L2_Madm, L2_Jadm});
+*/
+
+}
 
     if (m_p.do_star_track && m_level == m_p.star_track_level)
     {
@@ -299,9 +353,15 @@ void BBSEqualMassFixLevel::computeTaggingCriterion(
     FArrayBox &tagging_criterion, const FArrayBox &current_state,
     const FArrayBox &current_state_diagnostics)
 {
-    BoxLoops::loop(ComplexPhiAndChiExtractionTaggingCriterion(
+   /* BoxLoops::loop(ComplexPhiAndChiExtractionTaggingCriterion(
+                       m_dx, m_level, m_p.extraction_params,
+                       m_p.regrid_threshold_phi, m_p.regrid_threshold_chi,
+                       m_p.activate_extraction),
+                   current_state, tagging_criterion);*/
+    BoxLoops::loop((BosonChiPunctureExtractionTaggingCriterion.hpp(
                        m_dx, m_level, m_p.extraction_params,
                        m_p.regrid_threshold_phi, m_p.regrid_threshold_chi,
                        m_p.activate_extraction),
                    current_state, tagging_criterion);
+
 }

@@ -18,6 +18,8 @@ enum
     c_Mom1,
     c_Mom2,
     c_Mom3,
+    c_Madm,
+    c_Jadm,
 
     c_Weyl4_Re,
     c_Weyl4_Im,
