@@ -10,7 +10,7 @@ branch) in full 3D: two Dirac spinors of mass mu coupled to CCZ4. The convention
 |---|---|
 | `Source/Matter/DiracField.hpp` | Matter class: grid variables, 3+1 Dirac right-hand side, stress tensor. Implements the GRChombo matter interface (`compute_emtensor`, `add_matter_rhs`), so `MatterCCZ4RHS<DiracField>` works. |
 | `Source/Matter/DiracCCZ4RHS.hpp` | The same RHS as `MatterCCZ4RHS<DiracField>` (bit-identical), with the Dirac part computed once per cell instead of twice |
-| `Source/Matter/DiracConstraints.hpp` | Ham/Mom with the Dirac sources (needs the lapse and shift, unlike `MatterConstraints`); also `N` (particle-number integrand), `mod_psi` and `rho` |
+| `Source/Matter/DiracConstraints.hpp` | Ham/Mom with the Dirac sources (needs the lapse and shift, unlike `MatterConstraints`); also the diagnostics `n`, `n_A`, `n_B`, `N`, `mod_psi` and `rho` (see below) |
 | `Source/TaggingCriteria/DiracAndChiExtractionTaggingCriterion.hpp` | As `ComplexPhiAndChiExtractionTaggingCriterion` |
 | `Source/InitialConditions/DiracStars/DiracStarSolution.hpp` | Port of the 1D solver (shooting, isotropic transformation, Gaussian perturbation); identical to the 2DChombo file |
 | `Source/InitialConditions/DiracStars/SingleDiracStar.hpp` | Initial data for a single star, at rest or boosted along x (`DS_rapidity`) |
@@ -138,6 +138,23 @@ interfere) would need two more spinor pairs in `DiracField`.
 - **Further turning points:** at A_c = 1.240 and 2.363.
 
 The data and the plot script are in 2DChombo's `Examples/DiracStar_2D/family/`.
+
+## Diagnostics
+
+All of these are plottable (`plot_vars`). The `n` variables are the particle number density measured by the normal
+observers, n = -n_mu J^mu = psi^dag psi, so the particle number is int n sqrt(gamma) d^3x.
+
+| Name | Meaning |
+|---|---|
+| `n` | number density of both spinor fields |
+| `n_A`, `n_B` | number density of each spinor field (n_A + n_B = n) |
+| `N` | n chi^{-3/2}, the integrand summed into `ParticleNumber` |
+| `mod_psi` | sqrt(2 pi n), which equals A_central at the centre of a star at rest |
+| `rho` | energy density |
+
+With x- or y-reflection planes, `n_A` and `n_B` are mirror images of each other (the reflection swaps the two spinors),
+so neither has a parity of its own. Their parity entries in `params.txt` only matter if they are interpolated across
+such a plane.
 
 ## Running
 

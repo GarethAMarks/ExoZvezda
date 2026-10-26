@@ -297,6 +297,37 @@ class DiracField
         return n;
     }
 
+    //! number densities of the two spinors separately, n_A = psi_A^dag psi_A and n_B = psi_B^dag psi_B
+    //! (n_A + n_B = number_density). NB the x and y reflections swap psi_A and psi_B, so n_A and n_B are each
+    //! other's mirror images across such planes (their sum is even, their difference odd).
+    template <class data_t, template <typename> class vars_t>
+    static void spinor_number_densities(const vars_t<data_t> &vars, data_t &n_A, data_t &n_B)
+    {
+        using namespace DiracFieldHelpers;
+        const double r2 = 1. / sqrt(2.);
+        data_t P_re[8], P_im[8];
+        for (int c = 0; c < 8; ++c)
+        {
+            P_re[c] = 0.;
+            P_im[c] = 0.;
+        }
+        for (int m = 0; m < 8; ++m)
+            for (int s = 0; s < 2; ++s)
+            {
+                const int c = dirac_comb_idx[m][s];
+                const double w = r2 * dirac_comb_sgn[m][s];
+                P_re[c] += w * vars.D_Re[m];
+                P_im[c] += w * vars.D_Im[m];
+            }
+        n_A = 0.;
+        n_B = 0.;
+        for (int c = 0; c < 4; ++c)
+        {
+            n_A += P_re[c] * P_re[c] + P_im[c] * P_im[c];
+            n_B += P_re[c + 4] * P_re[c + 4] + P_im[c + 4] * P_im[c + 4];
+        }
+    }
+
   protected:
     params_t m_params;
 };

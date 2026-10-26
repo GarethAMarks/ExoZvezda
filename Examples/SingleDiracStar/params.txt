@@ -108,6 +108,8 @@ vars_parity_diagnostic = 0                #mod_psi
                          0 0              #ADM mass and J
                          0                #N
                          0                #rho
+                         0 0 0            #n, n_A, n_B (n_A and n_B are mirror images of each other across x = 0 and
+                                          #y = 0 planes, not even or odd: their parity matters only for interpolation)
                          0 1 2 3          #H,mom constraints
 
 # if reflective boundaries selected, must set
@@ -123,6 +125,7 @@ vars_asymptotic_values = 1.0 1.0 0.0 0.0 1.0 0.0 1.0 #chi and hij
                          0.0 0.0                     #Madm and Jadm
                          0.0                         #N (particle number density)
                          0.0                         #rho
+                         0.0 0.0 0.0                 #n, n_A, n_B
                          0.0 0.0 0.0 0.0             #Ham and Mom
 
 ##############################################################
@@ -159,8 +162,8 @@ sigma = 0.3
 calculate_particle_number = 1
 
 # Vars to write to plot files
-num_plot_vars = 6
-plot_vars = Ham Mom1 mod_psi chi lapse D_e_Re
+num_plot_vars = 8
+plot_vars = Ham Mom1 mod_psi n n_A n_B chi lapse
 
 ##############################################################
 # Mass extraction params

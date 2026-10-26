@@ -69,7 +69,7 @@ void BinaryDiracStarLevel::computeDiagnostics()
 {
     DiracField dirac_field(m_p.dirac_params);
     BoxLoops::loop(DiracConstraints(dirac_field, m_dx, m_p.G_Newton, c_Ham, Interval(c_Mom1, c_Mom3), c_N,
-                                    c_mod_psi, c_rho),
+                                    c_mod_psi, c_rho, c_n, c_n_A, c_n_B),
                    m_state_new, m_state_diagnostics, EXCLUDE_GHOST_CELLS);
 }
 

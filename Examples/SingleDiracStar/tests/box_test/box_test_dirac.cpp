@@ -78,7 +78,7 @@ int main(int argc, char **argv)
             BinaryDiracStar binary(bp, dx, 0);
             binary.compute_1d_solution();
             BoxLoops::loop(make_compute_pack(SetValue(0.), binary), in, in, box, disable_simd());
-            double e_par = 0., e_metric = 0., maxD = 0.;
+            double e_par = 0., e_metric = 0., maxD = 0., e_nmirror = 0., d_nAB = 0.;
             const char *names[8] = {"e", "x", "y", "z", "xy", "yz", "xz", "xyz"};
             for (BoxIterator bit(box); bit.ok(); ++bit)
             {
@@ -94,6 +94,20 @@ int main(int argc, char **argv)
                         maxD = std::max(maxD, std::abs(in(iv, c)));
                     }
                 }
+                // number densities: n_A(-x) = n_B(x)
+                DiracField::Vars<double> v1, v2;
+                for (int m = 0; m < 8; ++m)
+                {
+                    v1.D_Re[m] = in(iv, c_D_e_Re + 2 * m);
+                    v1.D_Im[m] = in(iv, c_D_e_Im + 2 * m);
+                    v2.D_Re[m] = in(ivm, c_D_e_Re + 2 * m);
+                    v2.D_Im[m] = in(ivm, c_D_e_Im + 2 * m);
+                }
+                double nA1, nB1, nA2, nB2;
+                DiracField::spinor_number_densities(v1, nA1, nB1);
+                DiracField::spinor_number_densities(v2, nA2, nB2);
+                e_nmirror = std::max(e_nmirror, std::abs(nA2 - nB1) + std::abs(nB2 - nA1));
+                d_nAB = std::max(d_nAB, std::abs(nA1 - nB1));
                 // metric: chi, h_xx even; h_xy odd in x; shift^x odd; lapse even
                 e_metric = std::max(e_metric, std::abs(in(ivm, c_chi) - in(iv, c_chi)) +
                                                   std::abs(in(ivm, c_lapse) - in(iv, c_lapse)) +
@@ -101,8 +115,8 @@ int main(int argc, char **argv)
                                                   std::abs(in(ivm, c_K) - in(iv, c_K)));
             }
             printf("binary id_choice %d: max |D(-x) - parity D(x)| = %.1e (max |D| %.2e), metric/gauge mirror error "
-                   "%.1e\n",
-                   id, e_par, maxD, e_metric);
+                   "%.1e, max |n_A(-x) - n_B(x)| = %.1e (max |n_A - n_B| = %.1e)\n",
+                   id, e_par, maxD, e_metric, e_nmirror, d_nAB);
         }
 #ifdef CH_MPI
         MPI_Finalize();
@@ -126,8 +140,9 @@ int main(int argc, char **argv)
         BoxLoops::loop(MatterCCZ4RHS<DiracField, MovingPunctureGauge, FourthOrderDerivatives>(dirac, params, dx, 0.3,
                                                                                               0, 1.),
                        in, rhs2, box);
-        BoxLoops::loop(DiracConstraints(dirac, dx, 1., c_Ham, Interval(c_Mom1, c_Mom3), c_N, c_mod_psi, c_rho), in,
-                       diag, box);
+        BoxLoops::loop(DiracConstraints(dirac, dx, 1., c_Ham, Interval(c_Mom1, c_Mom3), c_N, c_mod_psi, c_rho, c_n,
+                                        c_n_A, c_n_B),
+                       in, diag, box);
 
         const double w = star.m_1d_sol.omega;
         // exact d_t of the boosted solution (mode 1), from the helper at lab times +-h
@@ -151,6 +166,7 @@ int main(int argc, char **argv)
             }
         }
         double e_psi = 0., n_psi = 0., e_metric = 0., ham = 0., rho16 = 0., mom = 0., modpsi = 0., e_generic = 0.;
+        double e_nsum = 0., d_nAB = 0., n_max = 0.;
         for (BoxIterator bit(box); bit.ok(); ++bit)
         {
             IntVect iv = bit();
@@ -171,6 +187,9 @@ int main(int argc, char **argv)
             rho16 = std::max(rho16, 16. * M_PI * std::abs(diag(iv, c_rho)));
             mom = std::max(mom, std::abs(diag(iv, c_Mom1)) + std::abs(diag(iv, c_Mom2)) + std::abs(diag(iv, c_Mom3)));
             modpsi = std::max(modpsi, diag(iv, c_mod_psi));
+            e_nsum = std::max(e_nsum, std::abs(diag(iv, c_n) - diag(iv, c_n_A) - diag(iv, c_n_B)));
+            d_nAB = std::max(d_nAB, std::abs(diag(iv, c_n_A) - diag(iv, c_n_B)));
+            n_max = std::max(n_max, diag(iv, c_n));
         }
         if (mode == 1)
             e_metric = 0.; // a boosted star moves: the metric RHS is not zero
@@ -179,6 +198,8 @@ int main(int argc, char **argv)
                "|DiracCCZ4RHS - MatterCCZ4RHS<DiracField>| = %.1e\n",
                mode, A, idp.solver.perturb, dx, e_psi / n_psi, e_metric, ham / rho16, mom, modpsi, star.m_1d_sol.A_central,
                e_generic);
+        printf("   number densities: max n = %.6f (A^2/(2 pi) = %.6f), max |n - n_A - n_B| = %.1e, max |n_A - n_B| = %.1e\n",
+               n_max, star.m_1d_sol.A_central * star.m_1d_sol.A_central / (2. * M_PI), e_nsum, d_nAB);
     }
 #ifdef CH_MPI
     MPI_Finalize();
