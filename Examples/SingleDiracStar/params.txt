@@ -44,6 +44,7 @@ central_amplitude_dirac = 0.15   # A_central = g(0); stable branch for A < 0.228
 dirac_eigen = 0                  # number of nodes of G (0 = ground state)
 phase = 0.0                      # overall phase of the spinors (units of pi)
 star_centre = 256 0 0
+DS_rapidity = 0.0                # boost along x (rapidity > 0 moves towards -x); the y, z reflections still apply
 
 # 1D solver (defaults shown; dr = R / (gridpoints - 1))
 dirac_solver_radius = 100.       # use >~ 3 r_99 (r_99 = 17 at A = 0.05, 9 at 0.15, 6 at 0.3)

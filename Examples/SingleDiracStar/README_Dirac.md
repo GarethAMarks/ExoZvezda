@@ -13,9 +13,13 @@ branch) in full 3D: two Dirac spinors of mass mu coupled to CCZ4. The convention
 | `Source/Matter/DiracConstraints.hpp` | Ham/Mom with the Dirac sources (needs the lapse and shift, unlike `MatterConstraints`); also `N` (particle-number integrand), `mod_psi` and `rho` |
 | `Source/TaggingCriteria/DiracAndChiExtractionTaggingCriterion.hpp` | As `ComplexPhiAndChiExtractionTaggingCriterion` |
 | `Source/InitialConditions/DiracStars/DiracStarSolution.hpp` | Port of the 1D solver (shooting, isotropic transformation, Gaussian perturbation); identical to the 2DChombo file |
-| `Source/InitialConditions/DiracStars/SingleDiracStar.hpp` | Initial data for a single star at rest |
+| `Source/InitialConditions/DiracStars/SingleDiracStar.hpp` | Initial data for a single star, at rest or boosted along x (`DS_rapidity`) |
+| `Source/InitialConditions/DiracStars/DiracStarBoost.hpp` | Boosted star: lab metric, lapse, shift and K_ij as for the boson stars, plus the spinor transformation (shared with 2DChombo) |
+| `Source/InitialConditions/DiracStars/DiracStarHelperFunction.hpp` | The 3D variables (metric and the 16 spinor variables) of one boosted star, as `BosonStarHelperFunction` |
+| `Source/InitialConditions/DiracStars/BinaryDiracStar.hpp` | Binaries, combined as `BinaryPlainSuperposition`, `BinaryEqualMassFix` and `BinaryUnequalMassFix` (`id_choice` 0, 1, 2) |
+| `Examples/BinaryDiracStar/` | Head-on collision example (z-reflection, as the BBS examples) |
 | `Examples/SingleDiracStar/` | Level, `params.txt` (quadrant symmetry, as SingleBosonStar), variables |
-| `derivations/` | `check_dirac3d.py`: numerical checks of the equations; `dirac3d_ref.py`: Python reference implementation |
+| `derivations/` | `check_dirac3d.py`: numerical checks of the equations; `check_dirac_boost.py`: derivation and checks of the boost; `dirac3d_ref.py`: Python reference implementation |
 | `tests/` | C++ vs Python test (`test_dirac_cpp.*`, no Chombo needed) and a single-box test of the assembled code (`box_test/`) |
 
 ## Equations
@@ -53,6 +57,46 @@ stored as eight complex combinations `D_e, D_x, D_y, D_z, D_xy, D_yz, D_xz, D_xy
 - that mirrored data evolve as the mirror image for each of x, y and z (exact), and that the D parities are as named;
 - reduction to the 1D equations and sources for spherical data (1e-14).
 
+## Boosted stars and binaries
+
+**Coordinates.** As for the boson stars:
+
+    t~ = cosh(xi) t + sinh(xi) x,   x~ = sinh(xi) t + cosh(xi) x
+
+so a star with rapidity xi > 0 moves towards -x. The lab 3-metric, lapse, shift and K_ij are exactly those of
+`BosonStarHelperFunction`, with its conformal factor P = psi^2.
+
+**The spinor.** The spinor is a coordinate scalar, but its components refer to the tetrad.
+
+- The lab tetrad (e_0 = n, e_x along d_x) is the star's rest-frame orthonormal tetrad boosted in the 0-x plane, with
+  a local rapidity eta given by
+
+      tanh(eta) = tanh(xi) alpha(r~) / psi(r~)^2
+
+  This is the velocity of the lab's normal observers relative to the star, measured in the star's frame.
+- So the lab components are
+
+      psi_lab(t, x) = U(eta) e^{-i omega t~} psi_0(x~),   U(eta) = exp((eta/2) gamma^0 gamma^1) = cosh(eta/2) - sinh(eta/2) alpha_x
+
+  with alpha_x = gamma_D^0 gamma_D^1. A scalar field only picks up the phase; the spinor also gets the local Lorentz
+  transformation U.
+- U commutes with the y and z reflections, and the x reflection maps U(eta) to U(-eta). So the grid-variable parities
+  are unchanged, and equal-mass head-on binaries are mirror-symmetric about x = 0.
+
+`derivations/check_dirac_boost.py` checks:
+
+- the representation property of U (the other sign fails);
+- that the covariant 4D Dirac operator computed in lab coordinates with the lab tetrad equals U times the operator
+  computed in the rest frame, for an arbitrary background and spinor field (1.5e-13), while U(-eta) or no U fails at
+  O(0.1);
+- that the lab 3+1 right-hand side is consistent with this;
+- the reflection properties above.
+
+**Binaries.** Both stars' spinors are added and the metrics are combined as for the boson-star binaries. Since both
+stars populate the same two spinor fields, the fields interfere where the stars overlap, as boson stars do, so the
+relative phase (`phase`, `phase2`) matters. A binary of four independent spinors (one pair per star, which never
+interfere) would need two more spinor pairs in `DiracField`.
+
 ## Tests run so far (no 3D evolutions)
 
 - **C++ vs Python reference** at 200 random points: 4e-15.
@@ -71,7 +115,21 @@ stored as eight complex combinations `D_e, D_x, D_y, D_z, D_xy, D_yz, D_xz, D_xy
 
   These converge at roughly 4th order. For the perturbed star d_t psi stays at a resolution-independent 1.6e-3, as it
   should. `DiracCCZ4RHS` and `MatterCCZ4RHS<DiracField>` agree bit for bit.
-- **Compilation:** the example compiles against GRChombo (main branch) and Chombo (3D, MPI, gcc).
+- **Boosted star (rapidity 0.3, `box_test` mode 1):** the RHS reproduces the exact time derivative of the moving
+  solution, and the Hamiltonian and momentum constraints converge to zero:
+
+  | Quantity | dx = 0.1 | dx = 0.05 | factor |
+  |---|---|---|---|
+  | d_t psi error | 6.2e-7 | 3.8e-8 | 16.4 |
+  | Ham / 16 pi rho | 2.6e-7 | 1.7e-8 | 16.0 |
+  | Mom | 4.3e-8 | 2.7e-9 | 15.9 |
+
+  These use a 1D solution with 80001 points. The default 20001 points (dr = 0.005) leave a floor of about 1e-8 from the
+  interpolated psi' and alpha', so use `dirac_gridpoints ~ 80000` for very fine boosted runs.
+- **Binary (mode 2):** for an equal-mass head-on binary all three `id_choice` options give data that are exactly
+  mirror-symmetric with the parities of the grid variables.
+- **Compilation:** the SingleDiracStar and BinaryDiracStar examples compile against GRChombo (main branch) and Chombo
+  (3D, MPI, gcc).
 
 ## The family (mu = G = 1)
 
@@ -94,6 +152,6 @@ including the Gaussian perturbation (`dirac_perturb*`).
 - `mod_psi_max`, which equals the central amplitude for a star at rest;
 - `constraint_norms` and `min_chi`, as for the boson stars.
 
-The grid, AMR and tagging values in `params.txt` are copied from SingleBosonStar and untested for Dirac stars. Boosted
-stars and binaries are not implemented yet: a boost needs the spinor Lorentz transformation, and the variables and
-parities already allow x-reflection.
+The grid, AMR and tagging values in `params.txt` (and in `../BinaryDiracStar/params.txt`, from BBSPlainSuperposition)
+are copied from the boson-star examples and untested for Dirac stars. Star tracking is not included in the binary
+example.

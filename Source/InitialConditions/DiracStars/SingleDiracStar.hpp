@@ -9,6 +9,7 @@
 #include "Cell.hpp"
 #include "Coordinates.hpp"
 #include "DiracField.hpp"
+#include "DiracStarHelperFunction.hpp"
 #include "DiracStarSolution.hpp"
 #include "MatterCCZ4RHS.hpp"
 #include "MayDay.H"
@@ -26,10 +27,11 @@ struct DiracStar_params_t
     DiracStarSolution::params_t solver;          //!< 1D solver parameters (mu, A_central, eigen, perturbation, ...)
     std::array<double, CH_SPACEDIM> star_centre; //!< centre of the star
     double phase;                                //!< overall phase of both spinors, in units of pi
+    double rapidity = 0.;                        //!< boost along x (a star with rapidity > 0 moves towards -x)
     bool write_1d_profiles;                      //!< write the 1D solution to DiracStar_1d_profiles.dat (rank 0)
 };
 
-/// Initial data for a single Dirac star at rest
+/// Initial data for a single Dirac star, at rest or boosted along x
 /**
  * Solves the spherical star with DiracStarSolution (a port of the Spherical_BS_Evolver solver, optionally perturbed,
  * shared with 2DChombo) and sets, in isotropic coordinates centred on star_centre,
@@ -38,6 +40,9 @@ struct DiracStar_params_t
  *   D_z = -i f n_z e^{i theta} / sqrt(2 pi), the other D = 0,
  * i.e. the two spinors psi_m = (g chi_m, -i f (sigma.n) chi_m) / sqrt(4 pi), m = +-1/2, theta = phase pi (see
  * DiracField.hpp). Gamma^i must be computed afterwards (GammaCalculator). Use with disable_simd().
+ * With rapidity != 0 the star is boosted along x as the boson stars are (lab metric, lapse, shift and K_ij from
+ * DiracStarBoost.hpp) and both spinors are transformed by the local Lorentz boost U(eta) between the star's rest
+ * frame and the lab tetrad (DiracStarHelperFunction.hpp); for rapidity = 0 this reduces to the formulas above.
  **/
 class SingleDiracStar
 {
@@ -65,38 +70,34 @@ class SingleDiracStar
 
     template <class data_t> void compute(Cell<data_t> current_cell) const
     {
+        using namespace TensorAlgebra;
         typename MatterCCZ4RHS<DiracField>::template Vars<data_t> vars;
         VarsTools::assign(vars, 0.);
 
         Coordinates<data_t> coords(current_cell, m_dx, m_params.star_centre);
-        const data_t x = coords.x;
-        const double y = coords.y, z = coords.z;
-        const data_t r = sqrt(x * x + y * y + z * z);
+        DiracStarHelperFunction helper;
+        const auto star = helper.compute_star_vars(coords.x, coords.y, coords.z, m_params.rapidity, 0., 0.,
+                                                   m_1d_sol, m_params.phase);
 
-        const data_t g = m_1d_sol.get_g(r);
-        const data_t f = m_1d_sol.get_f(r);
-        const data_t psi_conf = m_1d_sol.get_psi(r);
-
-        vars.chi = pow(psi_conf, -4.);
-        FOR(i) vars.h[i][i] = 1.;
-        vars.lapse = m_1d_sol.get_lapse(r);
-
-        // unit radial vector (f vanishes at the centre, so n is irrelevant there)
-        const data_t rinv = (r > 1e-12 * m_dx) ? 1. / r : 0.;
-        const data_t n[3] = {x * rinv, y * rinv, z * rinv};
-        const double norm = 1. / sqrt(2. * M_PI);
-        const double th = m_params.phase * M_PI;
-        const double c = cos(th), s = sin(th);
-        // D_e = g e^{i th};  D_{x,z} = -i f n e^{i th} = f n (sin th - i cos th);  D_y = f n_y e^{i th}
-        vars.D_Re[0] = norm * g * c;
-        vars.D_Im[0] = norm * g * s;
-        vars.D_Re[1] = norm * f * n[0] * s;
-        vars.D_Im[1] = -norm * f * n[0] * c;
-        vars.D_Re[2] = norm * f * n[1] * c;
-        vars.D_Im[2] = norm * f * n[1] * s;
-        vars.D_Re[3] = norm * f * n[2] * s;
-        vars.D_Im[3] = -norm * f * n[2] * c;
-
+        Tensor<2, data_t> gLL, KLL;
+        FOR(i, j)
+        {
+            gLL[i][j] = star.gLL[i][j];
+            KLL[i][j] = star.KLL[i][j];
+        }
+        const auto gUU = compute_inverse_sym(gLL);
+        vars.chi = pow(gLL[0][0] * gLL[1][1] * gLL[2][2], -1. / 3.);
+        FOR(i, j) vars.h[i][j] = vars.chi * gLL[i][j];
+        vars.K = 0.;
+        FOR(i, j) vars.K += KLL[i][j] * gUU[i][j];
+        FOR(i, j) vars.A[i][j] = vars.chi * (KLL[i][j] - vars.K * gLL[i][j] / 3.);
+        vars.lapse = star.lapse;
+        vars.shift[0] = star.shiftx;
+        for (int k = 0; k < 8; ++k)
+        {
+            vars.D_Re[k] = star.D_Re[k];
+            vars.D_Im[k] = star.D_Im[k];
+        }
         current_cell.store_vars(vars);
     }
 

@@ -46,6 +46,7 @@ class SimulationParameters : public SimulationParametersBase
         pp.load("dirac_perturb_center", s.perturb_center, 0.);
         pp.load("star_centre", diracstar_params.star_centre, center);
         pp.load("phase", diracstar_params.phase, 0.0);
+        pp.load("DS_rapidity", diracstar_params.rapidity, 0.0); // boost along x (> 0 moves towards -x)
         pp.load("write_1d_profiles", diracstar_params.write_1d_profiles, false);
 
         positionA = diracstar_params.star_centre;

@@ -21,6 +21,7 @@ src_dirs := $(GRCHOMBO_SOURCE)/utils \
             $(GRCHOMBO_SOURCE)/GRChomboCore  \
             $(GRCHOMBO_SOURCE)/AMRInterpolator  \
             $(EXOZVEZDA_SOURCE)/InitialConditions/DiracStars \
+            $(EXOZVEZDA_SOURCE)/InitialConditions/BosonStars/UnequalMassFix \
             $(EXOZVEZDA_SOURCE)/Matter
 
 include $(CHOMBO_HOME)/mk/Make.test

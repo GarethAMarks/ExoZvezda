@@ -5,7 +5,7 @@ ExoZvezda is an open-source code for performing simulations of exotic compact ob
 
 Current exotic compact objects available for evolution: 
 * Single and binary evolutions of **boson stars** (BSs) :crystal_ball:
-* Single **Dirac stars** (two Dirac spinors coupled to CCZ4), branch `dirac-stars`: see `Examples/SingleDiracStar/README_Dirac.md`
+* Single, boosted and binary **Dirac stars** (two Dirac spinors coupled to CCZ4), branch `dirac-stars`: see `Examples/SingleDiracStar/README_Dirac.md`
 
 <!--## Getting started
 //Detailed installation instructions and usage examples are available in our [wiki](https://github.com/GRTLCollaboration/ExoChombo/wiki), with the home page giving guidance on where to start.-->

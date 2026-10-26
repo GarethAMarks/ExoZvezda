@@ -495,7 +495,8 @@ inline bool DiracStarSolution::solve(const params_t &a_params, std::ostream &os,
     return true;
 }
 
-inline double DiracStarSolution::interp_iso(const std::vector<double> &y, double Riso, bool odd) const
+inline double DiracStarSolution::interp_iso(const std::vector<double> &y, double Riso, bool odd,
+                                            bool derivative) const
 {
     using namespace DiracStarSolutionHelpers;
     const int j_low = static_cast<int>(floor(Riso / dr));
@@ -507,7 +508,26 @@ inline double DiracStarSolution::interp_iso(const std::vector<double> &y, double
         X[i] = j * dr;
         Y[i] = (j >= 0) ? y[j] : (odd ? -y[-j] : y[-j]);
     }
-    return lagrange(Riso, X, Y, 4);
+    if (!derivative)
+        return lagrange(Riso, X, Y, 4);
+    // derivative of the cubic Lagrange interpolant
+    double out = 0.;
+    for (int i = 0; i < 4; ++i)
+    {
+        double dli = 0.;
+        for (int m = 0; m < 4; ++m)
+        {
+            if (m == i)
+                continue;
+            double term = 1. / (X[i] - X[m]);
+            for (int j = 0; j < 4; ++j)
+                if (j != i && j != m)
+                    term *= (Riso - X[j]) / (X[i] - X[j]);
+            dli += term;
+        }
+        out += dli * Y[i];
+    }
+    return out;
 }
 
 // Beyond 0.8 R (where the 1D code starts blending the isotropic arrays towards Schwarzschild) the metric is isotropic
@@ -538,6 +558,19 @@ inline double DiracStarSolution::get_psi(double Riso) const
     if (Riso < 0.8 * R)
         return interp_iso(psi_iso_array, Riso, false);
     return 1. + M / (2. * Riso);
+}
+inline double DiracStarSolution::get_dlapse(double Riso) const
+{
+    if (Riso < 0.8 * R)
+        return exp(interp_iso(phi_iso_array, Riso, false)) * interp_iso(phi_iso_array, Riso, false, true);
+    const double h = M / (2. * Riso);
+    return M / (Riso * Riso * (1. + h) * (1. + h));
+}
+inline double DiracStarSolution::get_dpsi(double Riso) const
+{
+    if (Riso < 0.8 * R)
+        return interp_iso(psi_iso_array, Riso, false, true);
+    return -M / (2. * Riso * Riso);
 }
 
 inline void DiracStarSolution::write_profiles(const std::string &filename) const

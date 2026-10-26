@@ -74,6 +74,8 @@ class DiracStarSolution
     double get_f(double R) const;     //!< physical lower spinor function f (odd, f ~ R near the centre)
     double get_lapse(double R) const; //!< alpha
     double get_psi(double R) const;   //!< conformal factor, gamma_ij = psi^4 delta_ij
+    double get_dlapse(double R) const; //!< d alpha / dR
+    double get_dpsi(double R) const;   //!< d psi / dR
 
     double omega = 0.;          //!< frequency (with alpha(infinity) = 1)
     double M = 0.;              //!< ADM mass
@@ -113,7 +115,7 @@ class DiracStarSolution
     double r_areal(int j_iso) const;
     void fill_isotropic_arrays();
     void add_perturbation(double a, double k, double center, std::ostream &os, bool quiet);
-    double interp_iso(const std::vector<double> &y, double Riso, bool odd) const;
+    double interp_iso(const std::vector<double> &y, double Riso, bool odd, bool derivative = false) const;
 };
 
 #include "DiracStarSolution.impl.hpp"
