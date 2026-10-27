@@ -52,6 +52,9 @@ class SimulationParameters : public SimulationParametersBase
         //          with (a, b) = proca_perturb_axes.
         // Optionally a second perturbation (the paper's two-axis runs), with index n = proca_perturb_n (0: none) and
         // magnitude epsilon = proca_perturb_amp2, in an orthogonal plane proca_perturb_axes2.
+        // proca_perturb_smooth = 1 replaces each cos(m phi) by cos(m phi) sin^m(theta) = Re[(x_a + i x_b)^m] / r^m, theta
+        // measured from the line normal to the plane, which removes the jump of the factor across that line (default 0:
+        // the paper's convention).
         // proca_perturb_aspherical = 0 (default) disables the aspherical perturbations: the perturbation is then the
         // spherical one whatever m is.
         bool perturb, perturb_aspherical;
@@ -72,6 +75,7 @@ class SimulationParameters : public SimulationParametersBase
         pp.load("proca_perturb_n", asph.n, 0);
         pp.load("proca_perturb_amp2", asph.epsilon, 0.);
         pp.load("proca_perturb_axes2", axes2, {0, 2});
+        pp.load("proca_perturb_smooth", asph.smooth, false);
         for (int i = 0; i < 2; ++i)
         {
             asph.axes[i] = axes[i];

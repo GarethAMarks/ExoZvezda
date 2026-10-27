@@ -153,8 +153,20 @@ binaries.
   - The Proca variables are exactly F times the unperturbed ones, and the metric is unchanged.
   - Mom stays zero (1e-17).
   - Away from the two lines where phi and phi' are undefined, Gauss / |mu^2 X_phi| converges: 3.3e-4 -> 2.5e-5.
-  - Next to those lines, Ham / 16 pi rho (0.41 -> 0.62) and Gauss (0.026 -> 0.053) grow with resolution. This is the
-    discontinuity of Eq. (11) described under Perturbations.
+  - Next to those lines, Ham / 16 pi rho and Gauss grow with resolution. This is the discontinuity of Eq. (11)
+    described under Perturbations.
+- **Smoothed perturbation (mode 4):** the same with `smooth = true`. Maxima for r > 0.5, next to the lines (within 0.3
+  of them) or anywhere:
+
+  | | mode 3, dx = 0.1 | mode 3, dx = 0.05 | mode 4, dx = 0.1 | mode 4, dx = 0.05 |
+  |---|---|---|---|---|
+  | Ham / 16 pi rho, next to the lines | 0.317 | 0.573 | 0.166 | 0.168 |
+  | Gauss / \|mu^2 X_phi\|, r > 0.5 | 2.0e-2 | 3.6e-2 | 4.4e-4 | 4.0e-5 |
+
+  - Smoothed, Gauss converges everywhere except in the few cells around the centre, and Ham is the
+    resolution-independent O(delta) violation of the unsolved constraint.
+  - Next to the centre, Gauss / |mu^2 X_phi| stays O(delta) in both modes (0.03 -> 0.08 smoothed, 0.03 -> 0.05
+    unsmoothed). There X_phi does not vanish and F stays direction-dependent; Z damps this.
 - **Parameters:** the example runs its initial data with m = 1, n = 8 in the quadrant. It stops with an error for an
   odd m on a reflective first axis and for aspherical perturbations of binaries.
 - **Compilation and initial data:**
@@ -211,8 +223,17 @@ There is a single (complex) field, so n is also the density of that field.
   - For a Proca star at rest Gauss still holds wherever the factor is smooth, because E^i is radial and the factor
     depends only on angles.
   - phi is undefined on the line through the centre normal to its plane. The factor jumps there by up to
-    exp(4 delta), so the fields become discontinuous at that line, with an O(delta) constraint violation next to it
-    that does not converge away. This is inherent in Eq. (11).
+    exp(4 delta), so the fields become discontinuous at that line. The constraint violation next to it grows with
+    resolution. This is inherent in Eq. (11).
+- **Smoothed version:** `proca_perturb_smooth = 1` (default 0, the paper's convention) replaces each cos(m phi) by
+  cos(m phi) sin^m(theta), with theta the angle from that line, i.e. by Re[(x_a + i x_b)^m] / r^m, the angular shape of
+  the sectoral harmonic Y_mm.
+  - The factor is then smooth everywhere except at the centre point itself (a direction-dependent value with finite
+    gradient energy).
+  - Gauss then converges everywhere except in the few cells around the centre, where X_phi is nonzero (see Tests).
+  - It agrees with the unsmoothed factor in the plane of the reference axes. Like it, it depends only on angles.
+  - Recommended unless the aim is to reproduce the paper's runs. The 2D cartoon codes do not need it: there the
+    perturbation is axisymmetric and already smooth away from the centre.
 - **Symmetries:**
   - An odd index is odd under the reflection of its first reference axis (phi -> pi - phi).
   - With the quadrant symmetry of `params.txt` (reflective y and z), odd m or n therefore need x as the first

@@ -11,6 +11,10 @@
 // n = 2 in the x-z plane, delta = epsilon = 0.05. The matter variables must be F = exp(-2 delta cos(m phi))
 // exp(-2 epsilon cos(n phi')) times the unperturbed ones and the metric unchanged; Mom stays zero, Ham is O(delta)
 // (the constraints are not re-solved), and the Gauss constraint converges to zero away from the line where phi is undefined.
+// Mode 4: the same with the smoothed factor (smooth = true, cos(m phi) -> cos(m phi) sin^m(theta)). Ham and Gauss are
+// also reported for r > 0.5 next to those lines (the z axis for the x-y plane, the y axis for the x-z plane; within 0.3
+// of them): unsmoothed, they grow with resolution there; smoothed, Gauss converges to zero everywhere except next to
+// the centre and Ham is the O(delta) violation of the unsolved constraint.
 // Build: make all (uses the example's UserVariables.hpp), run:
 //   ./box_test_proca*.ex <A_central> <perturb 0|1> [mode] [1D gridpoints]
 #include "BinaryProcaStar.hpp"
@@ -49,9 +53,10 @@ int main(int argc, char **argv)
     idp.phase = 0.3;
     idp.write_1d_profiles = false;
     idp.rapidity = (mode == 1) ? 0.3 : 0.;
-    if (mode == 3)
+    if (mode == 3 || mode == 4)
     {
         idp.aspherical.active = true;
+        idp.aspherical.smooth = (mode == 4);
         idp.aspherical.m = 1;
         idp.aspherical.delta = 0.05;
         idp.aspherical.n = 2;
@@ -135,7 +140,7 @@ int main(int argc, char **argv)
         const ProcaStarSolution &sol = star.m_1d_sol;
         BoxLoops::loop(make_compute_pack(SetValue(0.), star), in, in, gbox, disable_simd());
         double e_factor = 0., F_min = 1., F_max = 1.;
-        if (mode == 3)
+        if (mode == 3 || mode == 4)
         {
             // the perturbed matter variables must be F times the unperturbed ones, the rest unchanged
             ProcaStar_params_t ref = idp;
@@ -166,7 +171,7 @@ int main(int argc, char **argv)
 
         const double w = sol.omega;
         double gauss_out = 0., e_P = 0., n_P = 0., e_metric = 0., ham = 0., rho16 = 0., mom = 0., gauss = 0., mu2X = 0.;
-        double modX = 0., e_n = 0., n_max = 0.;
+        double modX = 0., e_n = 0., n_max = 0., ham_line = 0., gauss_line = 0., gauss_r = 0.;
         for (BoxIterator bit(box); bit.ok(); ++bit)
         {
             IntVect iv = bit();
@@ -217,6 +222,15 @@ int main(int argc, char **argv)
             gauss = std::max(gauss, diag(iv, c_Gauss));
             if (std::hypot(x, y) > 0.5 && std::hypot(x, z) > 0.5)
                 gauss_out = std::max(gauss_out, diag(iv, c_Gauss)); // away from the lines where phi, phi' are undefined
+            if (x * x + y * y + z * z > 0.25)
+            {
+                gauss_r = std::max(gauss_r, std::abs(diag(iv, c_Gauss))); // everywhere except next to the centre
+                if (std::min(x * x + y * y, x * x + z * z) < 0.09)
+                {
+                    ham_line = std::max(ham_line, std::abs(diag(iv, c_Ham)));
+                    gauss_line = std::max(gauss_line, std::abs(diag(iv, c_Gauss)));
+                }
+            }
             mu2X = std::max(mu2X, std::sqrt(in(iv, c_Xphi_Re) * in(iv, c_Xphi_Re) + in(iv, c_Xphi_Im) * in(iv, c_Xphi_Im)));
             modX = std::max(modX, diag(iv, c_mod_Xphi));
             if (mode == 0)
@@ -230,11 +244,14 @@ int main(int argc, char **argv)
         }
         if (mode == 1)
             e_metric = 0.; // a boosted star moves: the metric RHS is not zero
-        if (mode == 3)
+        if (mode == 3 || mode == 4)
         {
-            printf("mode 3 (aspherical m = 1, n = 2, delta = epsilon = 0.05) dx = %.3f: max |vars - F vars_unperturbed| = "
-                   "%.1e (F in [%.4f, %.4f])  max|Mom| = %.2e  max|Ham|/max(16 pi rho) = %.2e  max|Gauss|/max|mu^2 X_phi| = %.2e (%.2e away from the lines where phi, phi\' are undefined)\n",
-                   dx, e_factor, F_min, F_max, mom, ham / rho16, gauss / mu2X, gauss_out / mu2X);
+            printf("mode %d (aspherical m = 1, n = 2, delta = epsilon = 0.05%s) dx = %.3f: max |vars - F "
+                   "vars_unperturbed| = %.1e (F in [%.4f, %.4f])  max|Mom| = %.2e  max|Ham|/max(16 pi rho) = %.2e  "
+                   "max|Gauss|/max|mu^2 X_phi| = %.2e (%.2e at least 0.5 from the lines where phi, phi\' are undefined)\n"
+                   "   r > 0.5: max|Gauss|/max|mu^2 X_phi| = %.2e; next to the lines: Gauss %.2e, Ham/max(16 pi rho) %.2e\n",
+                   mode, mode == 4 ? ", smoothed" : "", dx, e_factor, F_min, F_max, mom, ham / rho16, gauss / mu2X,
+                   gauss_out / mu2X, gauss_r / mu2X, gauss_line / mu2X, ham_line / rho16);
             continue;
         }
         printf("mode %d A = %.3f perturb %d dx = %.3f: |d_t Proca - exact|/|exact| = %.2e  max|metric rhs| = %.2e  "
