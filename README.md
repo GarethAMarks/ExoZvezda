@@ -5,6 +5,7 @@ ExoZvezda is an open-source code for performing simulations of exotic compact ob
 
 Current exotic compact objects available for evolution: 
 * Single and binary evolutions of **boson stars** (BSs) :crystal_ball:
+* Single, boosted and binary **Proca stars** (a complex Proca field coupled to CCZ4), branch `proca-stars`: see `Examples/SingleProcaStar/README_Proca.md`
 
 <!--## Getting started
 //Detailed installation instructions and usage examples are available in our [wiki](https://github.com/GRTLCollaboration/ExoChombo/wiki), with the home page giving guidance on where to start.-->
