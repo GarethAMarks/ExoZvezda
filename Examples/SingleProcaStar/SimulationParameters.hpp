@@ -44,10 +44,41 @@ class SimulationParameters : public SimulationParametersBase
         pp.load("proca_alpha_central_guess", s.alpha_central, 0.9);
         pp.load("proca_r_match_fac", s.r_match_fac, 0.85);
         pp.load("proca_freq_epsilon", s.freq_epsilon, 1e-19);
-        pp.load("proca_perturb", s.perturb, false);
-        pp.load("proca_perturb_amp", s.perturb_amp, 0.);
+        // Perturbations. With proca_perturb = 1 the azimuthal index proca_perturb_m selects the perturbation:
+        //   m = 0: the spherical perturbation (f, g) -> (1 + a exp(-(r - r0)^2 / w^2)) (f, g) of the 1D solver, with the
+        //          constraints re-solved (a = proca_perturb_amp, w = proca_perturb_spread, r0 = proca_perturb_center);
+        //   m >= 1: the aspherical perturbation of arXiv:2609.30021, Eq. (11): all matter fields multiplied by
+        //          exp(-2 delta cos(m phi)), delta = proca_perturb_amp, phi = atan2(x_b, x_a) about the star centre
+        //          with (a, b) = proca_perturb_axes.
+        // Optionally a second perturbation (the paper's two-axis runs), with index n = proca_perturb_n (0: none) and
+        // magnitude epsilon = proca_perturb_amp2, in an orthogonal plane proca_perturb_axes2.
+        // proca_perturb_aspherical = 0 (default) disables the aspherical perturbations: the perturbation is then the
+        // spherical one whatever m is.
+        bool perturb, perturb_aspherical;
+        int perturb_m;
+        double perturb_amp;
+        pp.load("proca_perturb", perturb, false);
+        pp.load("proca_perturb_aspherical", perturb_aspherical, false);
+        pp.load("proca_perturb_m", perturb_m, 0);
+        pp.load("proca_perturb_amp", perturb_amp, 0.);
         pp.load("proca_perturb_spread", s.perturb_spread, 3.);
         pp.load("proca_perturb_center", s.perturb_center, 0.);
+        AsphericalPerturbation &asph = procastar_params.aspherical;
+        asph.active = perturb && perturb_aspherical;
+        asph.m = perturb_m;
+        asph.delta = perturb_amp;
+        std::array<int, 2> axes, axes2;
+        pp.load("proca_perturb_axes", axes, {0, 1});
+        pp.load("proca_perturb_n", asph.n, 0);
+        pp.load("proca_perturb_amp2", asph.epsilon, 0.);
+        pp.load("proca_perturb_axes2", axes2, {0, 2});
+        for (int i = 0; i < 2; ++i)
+        {
+            asph.axes[i] = axes[i];
+            asph.axes2[i] = axes2[i];
+        }
+        s.perturb = perturb && (!perturb_aspherical || perturb_m == 0);
+        s.perturb_amp = perturb_amp;
         pp.load("star_centre", procastar_params.star_centre, center);
         pp.load("phase", procastar_params.phase, 0.0);
         pp.load("PS_rapidity", procastar_params.rapidity, 0.0); // boost along x (> 0 moves towards -x)
@@ -78,6 +109,19 @@ class SimulationParameters : public SimulationParametersBase
 
     void check_params()
     {
+        const AsphericalPerturbation &asph = procastar_params.aspherical;
+        const std::string asph_error = asph.check(CH_SPACEDIM);
+        check_parameter("proca_perturb_aspherical", asph.active, asph_error.empty(), asph_error);
+        // the perturbation must have the symmetries of the reflective boundaries (an odd index is odd under the
+        // reflection of the first reference axis)
+        for (int dir = 0; dir < CH_SPACEDIM; ++dir)
+        {
+            const bool reflective = boundary_params.lo_boundary[dir] == BoundaryConditions::REFLECTIVE_BC ||
+                                    boundary_params.hi_boundary[dir] == BoundaryConditions::REFLECTIVE_BC;
+            check_parameter("proca_perturb_axes", dir, !reflective || asph.even_under_reflection(dir),
+                            "an odd-index aspherical perturbation whose first reference axis is this direction breaks "
+                            "the reflection symmetry of the boundary: use another reference axis or an even index");
+        }
         warn_parameter("proca_mass", proca_params.mass, proca_params.mass > 0., "must be positive");
         check_parameter("central_amplitude_proca", procastar_params.solver.A_central,
                         procastar_params.solver.A_central > 0., "must be positive");

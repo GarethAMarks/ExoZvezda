@@ -57,12 +57,29 @@ proca_frequency_guess = 1.5      # brackets up or down from here automatically
 proca_alpha_central_guess = 0.9
 # write_1d_profiles = 1          # writes ProcaStar_1d_profiles.dat
 
-# Perturbation (f, g) -> (1 + a exp(-(r - r0)^2 / w^2)) (f, g), with the metric and E re-solved from the Hamiltonian
-# constraint and the Gauss law, as in Spherical_BS_Evolver. a > 0 makes the star denser
+# Perturbations. With proca_perturb = 1 the azimuthal index proca_perturb_m selects the perturbation:
+#   m = 0: the spherical perturbation (f, g) -> (1 + a exp(-(r - r0)^2 / w^2)) (f, g), with the metric and E (Gauss law) re-solved, as in
+#          Spherical_BS_Evolver (a = proca_perturb_amp, w = proca_perturb_spread, r0 = proca_perturb_center);
+#   m >= 1 (needs proca_perturb_aspherical = 1): the aspherical perturbation of arXiv:2609.30021, Eq. (11): all matter
+#          fields multiplied by exp(-2 delta cos(m phi)), delta = proca_perturb_amp, phi = atan2(x_b, x_a) about the
+#          star centre with (a, b) = proca_perturb_axes (0 = x, 1 = y, 2 = z). The constraints are not re-solved.
+# Two-axis perturbations: a second factor exp(-2 epsilon cos(n phi')) in an orthogonal plane, with n = proca_perturb_n
+# (0: none), epsilon = proca_perturb_amp2 and the axes proca_perturb_axes2 (sharing one axis with proca_perturb_axes).
+# An odd index is odd under the reflection of its first reference axis, so with the quadrant symmetry here (reflective
+# y and z) odd m or n need x as the first reference axis. Single stars only.
+# proca_perturb_aspherical = 0 disables the aspherical perturbations (the perturbation is then always spherical).
+# For m = 0, a > 0 makes the star denser. For m >= 1 the Gauss constraint still holds for a star at rest (E^i is radial
+# and the factor depends only on angles), except next to the line where phi is undefined.
 proca_perturb = 0
+proca_perturb_aspherical = 0
+proca_perturb_m = 0
 proca_perturb_amp = 0.01
 proca_perturb_spread = 3.
 proca_perturb_center = 0.
+proca_perturb_axes = 0 1
+proca_perturb_n = 0
+proca_perturb_amp2 = 0.01
+proca_perturb_axes2 = 0 2
 
 ##############################################################
 # Level data

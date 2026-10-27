@@ -6,6 +6,7 @@
 #ifndef SINGLEPROCASTAR_HPP_
 #define SINGLEPROCASTAR_HPP_
 
+#include "AsphericalPerturbation.hpp"
 #include "Cell.hpp"
 #include "Coordinates.hpp"
 #include "MatterCCZ4RHS.hpp"
@@ -29,6 +30,10 @@ struct ProcaStar_params_t
     double phase;                                //!< overall phase of the field, in units of pi
     double rapidity = 0.;                        //!< boost along x (a star with rapidity > 0 moves towards -x)
     bool write_1d_profiles;                      //!< write the 1D solution to ProcaStar_1d_profiles.dat (rank 0)
+
+    //! aspherical perturbation (arXiv:2609.30021, Eq. (11), with an optional second one in an orthogonal plane; see
+    //! AsphericalPerturbation.hpp). The spherical one (m = 0) is in solver (perturb, perturb_amp, ...). Single stars only.
+    AsphericalPerturbation aspherical;
 };
 
 //! Copies the metric quantities of a boosted star into the CCZ4 variables (chi, h, K, A, lapse, shift)
@@ -59,6 +64,10 @@ template <class vars_t> void set_ccz4_from_boosted_star(vars_t &vars, const doub
  * computed afterwards (GammaCalculator). Use with disable_simd().
  * With rapidity != 0 the star is boosted along x as the boson stars are: lab metric, lapse, shift and K_ij, and the
  * vector potential and field strength transformed as a covector and a 2-form (ProcaStarBoost.hpp).
+ * Perturbations: the spherical one (m = 0) is applied by the 1D solver, with the constraints re-solved; the aspherical
+ * one (aspherical.active) multiplies the matter fields by exp(-2 delta cos(m phi)) [exp(-2 epsilon cos(n phi'))], phi
+ * (phi') the azimuthal angle about the star centre in the plane of the reference axes (arXiv:2609.30021, Eq. (11);
+ * AsphericalPerturbation.hpp).
  **/
 class SingleProcaStar
 {
@@ -96,15 +105,17 @@ class SingleProcaStar
         set_ccz4_from_boosted_star(vars, s.gLL, s.KLL);
         vars.lapse = s.lapse;
         vars.shift[0] = s.shiftx;
+        // aspherical perturbation about the star centre (F = 1 unless active)
+        const double F = m_params.aspherical.factor(coords.x, coords.y, coords.z);
         FOR(i)
         {
-            vars.X_Re[i] = s.X[i].real();
-            vars.X_Im[i] = s.X[i].imag();
-            vars.E_Re[i] = s.E[i].real();
-            vars.E_Im[i] = s.E[i].imag();
+            vars.X_Re[i] = F * s.X[i].real();
+            vars.X_Im[i] = F * s.X[i].imag();
+            vars.E_Re[i] = F * s.E[i].real();
+            vars.E_Im[i] = F * s.E[i].imag();
         }
-        vars.Xphi_Re = s.Xphi.real();
-        vars.Xphi_Im = s.Xphi.imag();
+        vars.Xphi_Re = F * s.Xphi.real();
+        vars.Xphi_Im = F * s.Xphi.imag();
         current_cell.store_vars(vars);
     }
 
