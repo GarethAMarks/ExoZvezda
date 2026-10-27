@@ -12,11 +12,24 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 
 namespace DiracStarSolutionHelpers
 {
+//! true if x is NaN or +-infinity. This tests the bit pattern rather than using std::isnan / std::isinf, which compilers
+//! fold to false when they may assume finite arithmetic (-ffast-math, -ffinite-math-only, and the default
+//! -fp-model=fast of Intel's icx/icpx). The shooting relies on detecting the blowup of the trial solutions, so with
+//! std::isnan the frequency search fails in such builds.
+inline bool not_finite(double x)
+{
+    std::uint64_t bits;
+    std::memcpy(&bits, &x, sizeof(bits));
+    return (bits & 0x7ff0000000000000ULL) == 0x7ff0000000000000ULL;
+}
+
 inline int bound(int n, int lower, int upper) { return std::max(lower, std::min(n, upper)); }
 
 //! Lagrange interpolation through (X[i], Y[i])
@@ -119,8 +132,7 @@ inline void DiracStarSolution::rk4_solve(long double freq)
         const DiracFieldState s4 = state_RHS(r + dr, freq, axpy(state[j], dr, s3), false);
         state[j + 1] = rk4_combine(state[j], dr, s1, s2, s3, s4);
         radius_array[j + 1] = (j + 1) * dr;
-        if (std::isnan(state[j].F) || std::isnan(state[j].G) || std::isnan(state[j].X) || std::isnan(state[j].phi) ||
-            std::isinf(state[j].G) || std::isinf(state[j].X))
+        if (not_finite(state[j].F) || not_finite(state[j].G) || not_finite(state[j].X) || not_finite(state[j].phi))
         {
             blowup_point = j;
             return;
@@ -249,10 +261,10 @@ inline bool DiracStarSolution::fill_asymptotic(std::ostream &os, bool quiet)
     const int j_match = static_cast<int>(round(m_p.r_match_fac * min_index));
     const double r_match = dr * j_match;
     const double alpha_match = exp(state[j_match].phi);
-    const double k =
-        state[j_match].X * sqrt(mu * mu - static_cast<double>((omega_ld / alpha_match) * (omega_ld / alpha_match)));
+    const double k2 = mu * mu - static_cast<double>((omega_ld / alpha_match) * (omega_ld / alpha_match));
+    const double k = (k2 > 0.) ? state[j_match].X * sqrt(k2) : 0.;
     const double F_match = state[j_match].F, G_match = state[j_match].G;
-    if (std::isnan(k))
+    if (!(k2 > 0.) || not_finite(k))
     {
         os << "DiracStarSolution ERROR: omega / alpha exceeds mu at the matching point for A_central = "
             << A_central << std::endl;
@@ -270,7 +282,7 @@ inline bool DiracStarSolution::fill_asymptotic(std::ostream &os, bool quiet)
         const double decay = exp(-k * (radius_array[j + 1] - r_match));
         state[j + 1].F = F_match * decay;
         state[j + 1].G = G_match * decay;
-        if (std::isnan(state[j].F) || std::isnan(state[j].X) || std::isnan(state[j].phi) || std::isnan(state[j].G))
+        if (not_finite(state[j].F) || not_finite(state[j].X) || not_finite(state[j].phi) || not_finite(state[j].G))
         {
             os << "DiracStarSolution WARNING: nan in the asymptotic region for A_central = " << A_central
                 << std::endl;
@@ -344,7 +356,7 @@ inline void DiracStarSolution::add_perturbation(double a, double k, double cente
         rhs(r + dr, X + dr * k3X, u[j + 1], v[j + 1], du[j + 1], dv[j + 1], k4X, k4p);
         state[j + 1].X = X + (dr / 6.) * (k1X + 2. * k2X + 2. * k3X + k4X);
         state[j + 1].phi = phi + (dr / 6.) * (k1p + 2. * k2p + 2. * k3p + k4p);
-        if (std::isnan(state[j + 1].X) || std::isnan(state[j + 1].phi))
+        if (not_finite(state[j + 1].X) || not_finite(state[j + 1].phi))
         {
             os << "DiracStarSolution ERROR: constraint solve for the perturbed star failed at r = " << r + dr
                 << std::endl;
