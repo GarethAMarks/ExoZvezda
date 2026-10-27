@@ -63,6 +63,10 @@ dirac_alpha_central_guess = 0.95
 # (0: none), epsilon = dirac_perturb_amp2 and the axes dirac_perturb_axes2 (sharing one axis with dirac_perturb_axes).
 # An odd index is odd under the reflection of its first reference axis, so with the quadrant symmetry here (reflective
 # y and z) odd m or n need x as the first reference axis. Single stars only.
+# dirac_perturb_smooth = 1 multiplies each cos(m phi) by sin^m(theta), theta the angle from the line through the centre
+# normal to its plane (Re[(x_a + i x_b)^m] / r^m, the angular shape of Y_mm). Unsmoothed (0, the paper's convention),
+# the factor jumps across that line, giving constraint violations next to it that grow with resolution; smoothed, it
+# is smooth except at the centre. 1 is recommended unless reproducing the paper's runs.
 # dirac_perturb_aspherical = 0 disables the aspherical perturbations (the perturbation is then always spherical).
 # On the unstable branch (e.g. A = 0.30) m = 0 with a = +0.01 collapses to a black hole and a = -0.01 migrates to the
 # stable branch (1D results with w = 3, r0 = 0).
@@ -76,6 +80,7 @@ dirac_perturb_axes = 0 1
 dirac_perturb_n = 0
 dirac_perturb_amp2 = 0.01
 dirac_perturb_axes2 = 0 2
+dirac_perturb_smooth = 0
 
 ##############################################################
 # Level data

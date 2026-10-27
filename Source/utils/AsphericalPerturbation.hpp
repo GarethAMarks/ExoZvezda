@@ -33,8 +33,16 @@
  NB: phi is undefined on the line through the centre normal to the (x_a, x_b) plane (in the axisymmetric 2D case, only
  at the centre), and F jumps there by up to exp(4 delta). Any field that does not vanish there (the scalar field of the
  paper, the Dirac g, the Proca X_phi) therefore becomes discontinuous at that line or point. This is inherent in the
- prescription of Eq. (11). The resulting constraint violations (including Gauss for the Proca field) are O(delta),
- confined to the cells next to that set, and do not converge away with resolution; small delta keeps them mild.
+ prescription of Eq. (11). Next to the line, the gradient energy of the perturbed fields grows like 1/rho^2 (rho the
+ distance from the line), so the constraint violations there (including Gauss for the Proca field) are O(delta) or
+ larger and grow with resolution.
+
+ Smoothed version (smooth = true): cos(m phi) is replaced by cos(m phi) sin^m(theta) = Re[(x_a + i x_b)^m] / r^m,
+ theta the angle from that line (sin theta = rho / r). This is the angular dependence of the sectoral harmonics
+ Y_mm, and it vanishes on the line, so F is smooth everywhere except at the centre itself. There F remains direction
+ dependent, a point discontinuity with finite gradient energy. In the plane of the reference axes (theta = pi/2) the
+ smoothed and unsmoothed factors agree. In particular, on the cartoon plane of the 2D codes they are identical, and
+ there the only singular point is the centre anyway.
 
  Chombo-free and shared by the Dirac and Proca stars of 2DChombo and ExoZvezda.
 */
@@ -47,6 +55,19 @@ struct AsphericalPerturbation
     int n = 0;            //!< azimuthal index of the second perturbation (0: none; 3D only)
     double epsilon = 0.;  //!< its magnitude
     int axes2[2] = {0, 2};//!< its reference axes (must span a plane orthogonal to the first one)
+    bool smooth = false;  //!< replace cos(m phi) by cos(m phi) sin^m(theta), smooth off the centre (see above)
+
+    //! cos(m phi), or cos(m phi) sin^m(theta) if smooth, for the plane of the reference axes ax
+    double angular(int k, const int *ax, const double *c) const
+    {
+        const double phi = atan2(c[ax[1]], c[ax[0]]);
+        if (!smooth)
+            return cos(k * phi);
+        const double r = sqrt(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]);
+        if (r == 0.)
+            return 0.; // the direction-dependent centre: take the average over directions
+        return cos(k * phi) * pow(sqrt(c[ax[0]] * c[ax[0]] + c[ax[1]] * c[ax[1]]) / r, k);
+    }
 
     //! F at the position (x, y, z) relative to the star centre (z is ignored, and should be 0, in 2D)
     double factor(double x, double y, double z) const
@@ -56,14 +77,15 @@ struct AsphericalPerturbation
         const double c[3] = {x, y, z};
         double F = 1.;
         if (m != 0 && delta != 0.)
-            F *= exp(-2. * delta * cos(m * atan2(c[axes[1]], c[axes[0]])));
+            F *= exp(-2. * delta * angular(m, axes, c));
         if (n != 0 && epsilon != 0.)
-            F *= exp(-2. * epsilon * cos(n * atan2(c[axes2[1]], c[axes2[0]])));
+            F *= exp(-2. * epsilon * angular(n, axes2, c));
         return F;
     }
 
     //! whether F is even under the reflection x_dir -> -x_dir about the star centre. phi = atan2(x_b, x_a) goes to
-    //! -phi if dir = b (fine) and to pi - phi if dir = a, which flips the sign of cos(m phi) for odd m.
+    //! -phi if dir = b (fine) and to pi - phi if dir = a, which flips the sign of cos(m phi) for odd m (sin(theta) is
+    //! even under all three reflections, so the same holds for the smoothed version).
     bool even_under_reflection(int dir) const
     {
         if (!active)

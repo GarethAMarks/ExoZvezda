@@ -133,7 +133,19 @@ interfere) would need two more spinor pairs in `DiracField`.
   - The spinor is exactly F times the unperturbed one, and the metric is unchanged.
   - Mom stays zero (1e-15).
   - Ham / 16 pi rho = 0.31 (dx = 0.1) and 0.32 (dx = 0.05), the expected O(delta) violation.
-- **Parameters:** the example runs its initial data with the paper's IC-type configuration (m = 1, n = 8) in the quadrant.
+- **Smoothed perturbation (mode 4):** the same with `smooth = true`. Ham / 16 pi rho for r > 0.5, next to the lines
+  where the unsmoothed factor jumps (within 0.3 of them) and elsewhere:
+
+  | | dx = 0.1 | dx = 0.05 |
+  |---|---|---|
+  | mode 3, next to the lines | 0.302 | 0.313 |
+  | mode 3, elsewhere | 0.242 | 0.245 |
+  | mode 4, next to the lines | 0.191 | 0.192 |
+  | mode 4, elsewhere | 0.251 | 0.251 |
+
+  Smoothed, the violation is the resolution-independent O(delta) one everywhere; unsmoothed, it grows next to the lines.
+- **Parameters:** the example runs its initial data with the paper's IC-type configuration (m = 1, n = 8) in the quadrant,
+  with and without smoothing.
   It stops with an error for an odd m on a reflective first axis, for non-orthogonal planes, and for aspherical
   perturbations of binaries.
 - **Compilation:** the SingleDiracStar and BinaryDiracStar examples compile against GRChombo (main branch) and Chombo
@@ -185,8 +197,16 @@ such a plane.
 - **Constraints:** as in the paper, they are not re-solved after an aspherical perturbation, so Ham is violated at
   O(delta).
   - phi is undefined on the line through the centre normal to its plane. The factor jumps there by up to
-    exp(4 delta), so the fields become discontinuous at that line, with an O(delta) constraint violation next to it
-    that does not converge away. This is inherent in Eq. (11).
+    exp(4 delta), so the fields become discontinuous at that line. The constraint violation next to it grows with
+    resolution. This is inherent in Eq. (11).
+- **Smoothed version:** `dirac_perturb_smooth = 1` (default 0, the paper's convention) replaces each cos(m phi) by
+  cos(m phi) sin^m(theta), with theta the angle from that line, i.e. by Re[(x_a + i x_b)^m] / r^m, the angular shape of
+  the sectoral harmonic Y_mm.
+  - The factor is then smooth everywhere except at the centre point itself (a direction-dependent value with finite
+    gradient energy).
+  - It agrees with the unsmoothed factor in the plane of the reference axes. Like it, it depends only on angles.
+  - Recommended unless the aim is to reproduce the paper's runs. The 2D cartoon codes do not need it: there the
+    perturbation is axisymmetric and already smooth away from the centre.
 - **Symmetries:**
   - An odd index is odd under the reflection of its first reference axis (phi -> pi - phi).
   - With the quadrant symmetry of `params.txt` (reflective y and z), odd m or n therefore need x as the first

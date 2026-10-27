@@ -10,7 +10,10 @@
 // Mode 3: two-axis aspherical perturbation of a star at rest (arXiv:2609.30021 Eq. (11)): m = 1 in the x-y plane and
 // n = 2 in the x-z plane, delta = epsilon = 0.05. The matter variables must be F = exp(-2 delta cos(m phi))
 // exp(-2 epsilon cos(n phi')) times the unperturbed ones and the metric unchanged; Mom stays zero, Ham is O(delta)
-// (the constraints are not re-solved).
+// (the constraints are not re-solved). Mode 4: the same with the smoothed factor (smooth = true, cos(m phi) ->
+// cos(m phi) sin^m(theta)). Ham is reported separately next to the lines where the unsmoothed factor jumps (the z axis
+// for the x-y plane, the y axis for the x-z plane; within 0.3 of them, r > 0.5) and elsewhere (r > 0.5): unsmoothed,
+// the former grows with resolution; smoothed, both are the O(delta) violation of the unsolved constraint.
 // Build: make all (uses the example's UserVariables.hpp), run: ./box_test_dirac*.ex <A_central> <perturb 0|1> [mode] [1D gridpoints]
 #include "BoxIterator.H"
 #include "BoxLoops.hpp"
@@ -49,9 +52,10 @@ int main(int argc, char **argv)
     idp.phase = 0.3;
     idp.write_1d_profiles = false;
     idp.rapidity = (mode == 1) ? 0.3 : 0.;
-    if (mode == 3)
+    if (mode == 3 || mode == 4)
     {
         idp.aspherical.active = true;
+        idp.aspherical.smooth = (mode == 4);
         idp.aspherical.m = 1;
         idp.aspherical.delta = 0.05;
         idp.aspherical.n = 2;
@@ -151,7 +155,7 @@ int main(int argc, char **argv)
         star.compute_1d_solution();
         BoxLoops::loop(make_compute_pack(SetValue(0.), star), in, in, gbox, disable_simd());
         double e_factor = 0., F_min = 1., F_max = 1.;
-        if (mode == 3)
+        if (mode == 3 || mode == 4)
         {
             // the perturbed matter variables must be F times the unperturbed ones, the rest unchanged
             DiracStar_params_t ref = idp;
@@ -204,7 +208,7 @@ int main(int argc, char **argv)
             }
         }
         double e_psi = 0., n_psi = 0., e_metric = 0., ham = 0., rho16 = 0., mom = 0., modpsi = 0., e_generic = 0.;
-        double e_nsum = 0., d_nAB = 0., n_max = 0.;
+        double e_nsum = 0., d_nAB = 0., n_max = 0., ham_line = 0., ham_far = 0.;
         for (BoxIterator bit(box); bit.ok(); ++bit)
         {
             IntVect iv = bit();
@@ -222,6 +226,16 @@ int main(int argc, char **argv)
             for (int c = 0; c < NUM_VARS; ++c)
                 e_generic = std::max(e_generic, std::abs(rhs(iv, c) - rhs2(iv, c)));
             ham = std::max(ham, std::abs(diag(iv, c_Ham)));
+            {
+                const double x = (iv[0] + 0.5) * dx - idp.star_centre[0], y = (iv[1] + 0.5) * dx - idp.star_centre[1],
+                             z = (iv[2] + 0.5) * dx - idp.star_centre[2];
+                if (x * x + y * y + z * z > 0.25)
+                {
+                    const bool near_line = std::min(x * x + y * y, x * x + z * z) < 0.09;
+                    double &h = near_line ? ham_line : ham_far;
+                    h = std::max(h, std::abs(diag(iv, c_Ham)));
+                }
+            }
             rho16 = std::max(rho16, 16. * M_PI * std::abs(diag(iv, c_rho)));
             mom = std::max(mom, std::abs(diag(iv, c_Mom1)) + std::abs(diag(iv, c_Mom2)) + std::abs(diag(iv, c_Mom3)));
             modpsi = std::max(modpsi, diag(iv, c_mod_psi));
@@ -231,11 +245,13 @@ int main(int argc, char **argv)
         }
         if (mode == 1)
             e_metric = 0.; // a boosted star moves: the metric RHS is not zero
-        if (mode == 3)
+        if (mode == 3 || mode == 4)
         {
-            printf("mode 3 (aspherical m = 1, n = 2, delta = epsilon = 0.05) dx = %.3f: max |vars - F vars_unperturbed| = "
-                   "%.1e (F in [%.4f, %.4f])  max|Mom| = %.2e  max|Ham|/max(16 pi rho) = %.2e\n",
-                   dx, e_factor, F_min, F_max, mom, ham / rho16);
+            printf("mode %d (aspherical m = 1, n = 2, delta = epsilon = 0.05%s) dx = %.3f: max |vars - F "
+                   "vars_unperturbed| = %.1e (F in [%.4f, %.4f])  max|Mom| = %.2e  max|Ham|/max(16 pi rho) = %.2e "
+                   "(r > 0.5: next to the lines %.2e, elsewhere %.2e)\n",
+                   mode, mode == 4 ? ", smoothed" : "", dx, e_factor, F_min, F_max, mom, ham / rho16,
+                   ham_line / rho16, ham_far / rho16);
             continue;
         }
         printf("mode %d A = %.2f perturb %d dx = %.3f: |d_t psi - exact|/|exact| = %.2e  max|metric rhs| = %.2e  "
