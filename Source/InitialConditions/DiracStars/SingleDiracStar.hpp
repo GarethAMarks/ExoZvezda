@@ -6,6 +6,7 @@
 #ifndef SINGLEDIRACSTAR_HPP_
 #define SINGLEDIRACSTAR_HPP_
 
+#include "AsphericalPerturbation.hpp"
 #include "Cell.hpp"
 #include "Coordinates.hpp"
 #include "DiracField.hpp"
@@ -29,6 +30,10 @@ struct DiracStar_params_t
     double phase;                                //!< overall phase of both spinors, in units of pi
     double rapidity = 0.;                        //!< boost along x (a star with rapidity > 0 moves towards -x)
     bool write_1d_profiles;                      //!< write the 1D solution to DiracStar_1d_profiles.dat (rank 0)
+
+    //! aspherical perturbation (arXiv:2609.30021, Eq. (11), with an optional second one in an orthogonal plane; see
+    //! AsphericalPerturbation.hpp). The spherical one (m = 0) is in solver (perturb, perturb_amp, ...). Single stars only.
+    AsphericalPerturbation aspherical;
 };
 
 /// Initial data for a single Dirac star, at rest or boosted along x
@@ -43,6 +48,10 @@ struct DiracStar_params_t
  * With rapidity != 0 the star is boosted along x as the boson stars are (lab metric, lapse, shift and K_ij from
  * DiracStarBoost.hpp) and both spinors are transformed by the local Lorentz boost U(eta) between the star's rest
  * frame and the lab tetrad (DiracStarHelperFunction.hpp); for rapidity = 0 this reduces to the formulas above.
+ * Perturbations: the spherical one (m = 0) is applied by the 1D solver, with the constraints re-solved; the aspherical
+ * one (aspherical.active) multiplies the matter fields by exp(-2 delta cos(m phi)) [exp(-2 epsilon cos(n phi'))], phi
+ * (phi') the azimuthal angle about the star centre in the plane of the reference axes (arXiv:2609.30021, Eq. (11);
+ * AsphericalPerturbation.hpp).
  **/
 class SingleDiracStar
 {
@@ -93,10 +102,12 @@ class SingleDiracStar
         FOR(i, j) vars.A[i][j] = vars.chi * (KLL[i][j] - vars.K * gLL[i][j] / 3.);
         vars.lapse = star.lapse;
         vars.shift[0] = star.shiftx;
+        // aspherical perturbation about the star centre (F = 1 unless active)
+        const double F = m_params.aspherical.factor(coords.x, coords.y, coords.z);
         for (int k = 0; k < 8; ++k)
         {
-            vars.D_Re[k] = star.D_Re[k];
-            vars.D_Im[k] = star.D_Im[k];
+            vars.D_Re[k] = F * star.D_Re[k];
+            vars.D_Im[k] = F * star.D_Im[k];
         }
         current_cell.store_vars(vars);
     }

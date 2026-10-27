@@ -7,6 +7,10 @@
 // constraints must converge to zero, and d_t psi from the RHS must equal the exact time derivative of the boosted
 // solution psi_lab(t, x) = U(eta) psi_rest(t~, x~) (computed from DiracStarHelperFunction at t = +-h); 2 equal-mass
 // head-on binary: the grid variables must have the x-reflection parities of their names about the centre.
+// Mode 3: two-axis aspherical perturbation of a star at rest (arXiv:2609.30021 Eq. (11)): m = 1 in the x-y plane and
+// n = 2 in the x-z plane, delta = epsilon = 0.05. The matter variables must be F = exp(-2 delta cos(m phi))
+// exp(-2 epsilon cos(n phi')) times the unperturbed ones and the metric unchanged; Mom stays zero, Ham is O(delta)
+// (the constraints are not re-solved).
 // Build: make all (uses the example's UserVariables.hpp), run: ./box_test_dirac*.ex <A_central> <perturb 0|1> [mode] [1D gridpoints]
 #include "BoxIterator.H"
 #include "BoxLoops.hpp"
@@ -45,6 +49,18 @@ int main(int argc, char **argv)
     idp.phase = 0.3;
     idp.write_1d_profiles = false;
     idp.rapidity = (mode == 1) ? 0.3 : 0.;
+    if (mode == 3)
+    {
+        idp.aspherical.active = true;
+        idp.aspherical.m = 1;
+        idp.aspherical.delta = 0.05;
+        idp.aspherical.n = 2;
+        idp.aspherical.epsilon = 0.05;
+        idp.aspherical.axes[0] = 0;
+        idp.aspherical.axes[1] = 1;
+        idp.aspherical.axes2[0] = 0;
+        idp.aspherical.axes2[1] = 2;
+    }
     if (argc > 4)
         idp.solver.n_gridpoints = atoi(argv[4]); // 1D solver resolution (default 20001 on R = 100)
     DiracField dirac(DiracField::params_t{1.});
@@ -134,6 +150,28 @@ int main(int argc, char **argv)
         SingleDiracStar star(idp, dx, 0);
         star.compute_1d_solution();
         BoxLoops::loop(make_compute_pack(SetValue(0.), star), in, in, gbox, disable_simd());
+        double e_factor = 0., F_min = 1., F_max = 1.;
+        if (mode == 3)
+        {
+            // the perturbed matter variables must be F times the unperturbed ones, the rest unchanged
+            DiracStar_params_t ref = idp;
+            ref.aspherical.active = false;
+            SingleDiracStar star_ref(ref, dx, 0);
+            star_ref.compute_1d_solution();
+            FArrayBox in_ref(box, NUM_VARS);
+            BoxLoops::loop(make_compute_pack(SetValue(0.), star_ref), in_ref, in_ref, box, disable_simd());
+            for (BoxIterator bit(box); bit.ok(); ++bit)
+            {
+                IntVect iv = bit();
+                const double F = idp.aspherical.factor((iv[0] + 0.5) * dx - idp.star_centre[0],
+                                                       (iv[1] + 0.5) * dx - idp.star_centre[1],
+                                                       (iv[2] + 0.5) * dx - idp.star_centre[2]);
+                F_min = std::min(F_min, F);
+                F_max = std::max(F_max, F);
+                for (int c = 0; c < NUM_VARS; ++c)
+                    e_factor = std::max(e_factor, std::abs(in(iv, c) - ((c >= c_D_e_Re) ? F : 1.) * in_ref(iv, c)));
+            }
+        }
         BoxLoops::loop(GammaCalculator(dx), in, in, mbox, disable_simd());
         BoxLoops::loop(DiracCCZ4RHS<MovingPunctureGauge, FourthOrderDerivatives>(dirac, params, dx, 0.3, 0, 1.), in,
                        rhs, box);
@@ -193,6 +231,13 @@ int main(int argc, char **argv)
         }
         if (mode == 1)
             e_metric = 0.; // a boosted star moves: the metric RHS is not zero
+        if (mode == 3)
+        {
+            printf("mode 3 (aspherical m = 1, n = 2, delta = epsilon = 0.05) dx = %.3f: max |vars - F vars_unperturbed| = "
+                   "%.1e (F in [%.4f, %.4f])  max|Mom| = %.2e  max|Ham|/max(16 pi rho) = %.2e\n",
+                   dx, e_factor, F_min, F_max, mom, ham / rho16);
+            continue;
+        }
         printf("mode %d A = %.2f perturb %d dx = %.3f: |d_t psi - exact|/|exact| = %.2e  max|metric rhs| = %.2e  "
                "max|Ham|/max(16 pi rho) = %.2e  max|Mom| = %.2e  max mod_psi = %.5f (A_central %.5f)  "
                "|DiracCCZ4RHS - MatterCCZ4RHS<DiracField>| = %.1e\n",

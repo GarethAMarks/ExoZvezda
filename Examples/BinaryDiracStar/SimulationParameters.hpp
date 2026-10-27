@@ -43,6 +43,7 @@ class SimulationParameters : public SimulationParametersBase
         pp.load("dirac_r_match_fac", s.r_match_fac, 0.85);
         pp.load("dirac_freq_epsilon", s.freq_epsilon, 1e-19);
         pp.load("dirac_perturb", s.perturb, false);
+        pp.load("dirac_perturb_aspherical", perturb_aspherical, false); // single stars only (checked below)
         pp.load("dirac_perturb_amp", s.perturb_amp, 0.);
         pp.load("dirac_perturb_spread", s.perturb_spread, 3.);
         pp.load("dirac_perturb_center", s.perturb_center, 0.);
@@ -91,6 +92,9 @@ class SimulationParameters : public SimulationParametersBase
 
     void check_params()
     {
+        check_parameter("dirac_perturb_aspherical", perturb_aspherical, !perturb_aspherical,
+                        "aspherical perturbations are only implemented for single stars; the binary takes the "
+                        "spherical (m = 0) perturbation only");
         warn_parameter("dirac_mass", dirac_params.mass, dirac_params.mass > 0., "must be positive");
         check_parameter("central_amplitude_dirac", binary_params.star1.solver.A_central,
                         binary_params.star1.solver.A_central > 0., "must be positive");
@@ -112,6 +116,7 @@ class SimulationParameters : public SimulationParametersBase
     int activate_mass_extraction;
     extraction_params_t mass_extraction_params;
     bool calculate_particle_number;
+    bool perturb_aspherical;
     std::array<double, CH_SPACEDIM> positionA;
 #ifdef USE_AHFINDER
     double AH_initial_guess;

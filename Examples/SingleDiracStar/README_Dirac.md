@@ -128,6 +128,14 @@ interfere) would need two more spinor pairs in `DiracField`.
   interpolated psi' and alpha', so use `dirac_gridpoints ~ 80000` for very fine boosted runs.
 - **Binary (mode 2):** for an equal-mass head-on binary all three `id_choice` options give data that are exactly
   mirror-symmetric with the parities of the grid variables.
+- **Two-axis aspherical perturbation (mode 3):** m = 1 in the x-y plane and n = 2 in the x-z plane, with
+  delta = epsilon = 0.05.
+  - The spinor is exactly F times the unperturbed one, and the metric is unchanged.
+  - Mom stays zero (1e-15).
+  - Ham / 16 pi rho = 0.31 (dx = 0.1) and 0.32 (dx = 0.05), the expected O(delta) violation.
+- **Parameters:** the example runs its initial data with the paper's IC-type configuration (m = 1, n = 8) in the quadrant.
+  It stops with an error for an odd m on a reflective first axis, for non-orthogonal planes, and for aspherical
+  perturbations of binaries.
 - **Compilation:** the SingleDiracStar and BinaryDiracStar examples compile against GRChombo (main branch) and Chombo
   (3D, MPI, gcc).
 
@@ -156,12 +164,44 @@ With x- or y-reflection planes, `n_A` and `n_B` are mirror images of each other 
 so neither has a parity of its own. Their parity entries in `params.txt` only matter if they are interpolated across
 such a plane.
 
+## Perturbations
+
+`dirac_perturb = 1` perturbs a single star. In this generalised formalism the azimuthal index
+`dirac_perturb_m` selects the perturbation, and the spherical perturbation of Spherical_BS_Evolver is its m = 0 member.
+
+- **m = 0 (spherical):** the 1D solver applies (f, g) -> (1 + a exp(-(r - r0)^2 / w^2)) (f, g) and re-solves the
+  constraints (metric), as before. Here a = `dirac_perturb_amp`, w = `dirac_perturb_spread` and
+  r0 = `dirac_perturb_center`.
+- **m >= 1 (aspherical):** the perturbation of arXiv:2609.30021, Eq. (11). The matter fields (all spinor components, i.e. the eight D combinations) are multiplied
+  by exp(-2 delta cos(m phi)), with delta = `dirac_perturb_amp`.
+  - phi = atan2(x_b, x_a) is the azimuthal angle about the star centre, with reference axes
+    (a, b) = `dirac_perturb_axes` (0 = x, 1 = y, 2 = z; default x, y).
+- **Two-axis perturbations:** a second factor exp(-2 epsilon cos(n phi')), prepared in an orthogonal plane, is added
+  with n = `dirac_perturb_n` (0: none), epsilon = `dirac_perturb_amp2` and the reference axes `dirac_perturb_axes2`.
+  These must share exactly one axis with `dirac_perturb_axes` (default x, z). This is the configuration of the paper's
+  runs IC and IIC, which leaves no symmetry axis.
+- **Switching off:** `dirac_perturb_aspherical` (default 0) must be 1 for the aspherical perturbations. With 0 they are
+  disabled and the perturbation is spherical whatever m is.
+- **Constraints:** as in the paper, they are not re-solved after an aspherical perturbation, so Ham is violated at
+  O(delta).
+  - phi is undefined on the line through the centre normal to its plane. The factor jumps there by up to
+    exp(4 delta), so the fields become discontinuous at that line, with an O(delta) constraint violation next to it
+    that does not converge away. This is inherent in Eq. (11).
+- **Symmetries:**
+  - An odd index is odd under the reflection of its first reference axis (phi -> pi - phi).
+  - With the quadrant symmetry of `params.txt` (reflective y and z), odd m or n therefore need x as the first
+    reference axis. The code checks the reflective boundaries and stops otherwise.
+  - Example: the paper's IC run (m = 1, n = 8) is `dirac_perturb_axes = 0 1` and `dirac_perturb_axes2 = 0 2`.
+- **Single stars only:** the binary example accepts only the spherical perturbation.
+
+The code is in `Source/utils/AsphericalPerturbation.hpp`, shared with 2DChombo (where the perturbation is axisymmetric).
+
 ## Running
 
     cd Examples/SingleDiracStar && make all && mpirun ./Main_SingleDiracStar3d*.ex params.txt
 
 **Initial-data parameters** (`central_amplitude_dirac`, `dirac_*`) mirror Spherical_BS_Evolver's `BSParams.par`,
-including the Gaussian perturbation (`dirac_perturb*`).
+including the perturbations (`dirac_perturb*`, below).
 
 **Outputs:**
 
