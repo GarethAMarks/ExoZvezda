@@ -12,11 +12,24 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 
 namespace ProcaStarSolutionHelpers
 {
+//! true if x is NaN or +-infinity. This tests the bit pattern rather than using std::isnan / std::isinf, which compilers
+//! fold to false when they may assume finite arithmetic (-ffast-math, -ffinite-math-only, and the default
+//! -fp-model=fast of Intel's icx/icpx). The shooting relies on detecting the blowup of the trial solutions, so with
+//! std::isnan the frequency search fails in such builds.
+inline bool not_finite(double x)
+{
+    std::uint64_t bits;
+    std::memcpy(&bits, &x, sizeof(bits));
+    return (bits & 0x7ff0000000000000ULL) == 0x7ff0000000000000ULL;
+}
+
 inline int bound(int n, int lower, int upper) { return std::max(lower, std::min(n, upper)); }
 
 //! Lagrange interpolation through (X[i], Y[i])
@@ -109,10 +122,10 @@ inline double ProcaStarSolution::solve_g(long double frequency, const ProcaField
         W = dV(Psi);
         const double hh = W * g - src;
         const double dh = W + 2. * g * g * ddV(Psi) / X2;
-        if (dh == 0. || std::isnan(dh) || std::isnan(hh))
+        if (dh == 0. || ProcaStarSolutionHelpers::not_finite(dh) || ProcaStarSolutionHelpers::not_finite(hh))
         {
             g_solve_failed = true;
-            return NAN;
+            return 0.; // failure is signalled by g_solve_failed
         }
         const double step = hh / dh;
         g -= step;
@@ -124,7 +137,7 @@ inline double ProcaStarSolution::solve_g(long double frequency, const ProcaField
         }
     }
     g_solve_failed = true;
-    return NAN;
+    return 0.; // no convergence: failure is signalled by g_solve_failed
 }
 
 // X', phi' (Hamiltonian constraint and polar slicing) and E' (Gauss law) for given f and g, D = 4
@@ -178,7 +191,7 @@ inline void ProcaStarSolution::rk4_solve(long double freq)
         const ProcaFieldState s4 = state_RHS(r + dr, freq, axpy(state[j], dr, s3), false);
         state[j + 1] = rk4_combine(state[j], dr, s1, s2, s3, s4);
         radius_array[j + 1] = (j + 1) * dr;
-        if (std::isnan(state[j].f) || std::isnan(state[j].X) || std::isnan(state[j].phi) || std::isnan(state[j].E) ||
+        if (not_finite(state[j].f) || not_finite(state[j].X) || not_finite(state[j].phi) || not_finite(state[j].E) ||
             g_solve_failed)
         {
             blowup_point = j;
@@ -320,8 +333,9 @@ inline bool ProcaStarSolution::fill_asymptotic(std::ostream &os, bool quiet)
     const double phi_match = state[j_match].phi;
     const double E_match = state[j_match].E;
     // far from the star f ~ exp(-k r)/r, and E/f = -(mu^2/k^2)(1/r + k)
-    const double k = sqrt(mu * mu - static_cast<double>(pow(omega_ld / exp(phi_match), 2)));
-    if (std::isnan(k))
+    const double k2 = mu * mu - static_cast<double>(pow(omega_ld / exp(phi_match), 2));
+    const double k = (k2 > 0.) ? sqrt(k2) : 0.;
+    if (!(k2 > 0.) || not_finite(k))
     {
         os << "ProcaStarSolution ERROR: omega / alpha exceeds mu at the matching point for A_central = "
            << A_central << std::endl;
@@ -341,7 +355,7 @@ inline bool ProcaStarSolution::fill_asymptotic(std::ostream &os, bool quiet)
         const double r1 = radius_array[j + 1];
         state[j + 1].f = f_factor * exp(-k * r1) / r1;
         state[j + 1].E = E_over_f(r1) * state[j + 1].f;
-        if (std::isnan(state[j].f) || std::isnan(state[j].X) || std::isnan(state[j].phi) || std::isnan(state[j].E))
+        if (not_finite(state[j].f) || not_finite(state[j].X) || not_finite(state[j].phi) || not_finite(state[j].E))
         {
             os << "ProcaStarSolution WARNING: nan in the asymptotic region for A_central = " << A_central
                << std::endl;
@@ -393,7 +407,7 @@ inline void ProcaStarSolution::add_perturbation(double a, double k, double cente
         state[j + 1].X = X + (dr / 6.) * (k1X + 2. * k2X + 2. * k3X + k4X);
         state[j + 1].phi = phi + (dr / 6.) * (k1p + 2. * k2p + 2. * k3p + k4p);
         state[j + 1].E = E + (dr / 6.) * (k1E + 2. * k2E + 2. * k3E + k4E);
-        if (std::isnan(state[j + 1].X) || std::isnan(state[j + 1].phi) || std::isnan(state[j + 1].E))
+        if (not_finite(state[j + 1].X) || not_finite(state[j + 1].phi) || not_finite(state[j + 1].E))
         {
             os << "ProcaStarSolution ERROR: constraint solve for the perturbed star failed at r = " << r + dr
                << std::endl;
